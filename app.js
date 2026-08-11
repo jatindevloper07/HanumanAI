@@ -195,8 +195,8 @@ class HanumanAI {
 
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = location.hostname || 'localhost';
-    const port = location.port || '8000';
-    this.ws = new WebSocket(`${protocol}//${host}:${port}/ws`);
+    const port = location.port ? `:${location.port}` : (location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? ':8000' : '');
+    this.ws = new WebSocket(`${protocol}//${host}${port}/ws`);
 
     this.ws.onopen = () => {
       this.reconnectAttempts = 0;
