@@ -454,9 +454,21 @@ async def static_files(filename: str):
 
 if __name__ == "__main__":
     import uvicorn
+    import socket
+
+    def is_port_in_use(p):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            return s.connect_ex(('127.0.0.1', p)) == 0
+
+    desired_port = int(os.getenv("PORT", 8000))
+    if "PORT" not in os.environ and is_port_in_use(desired_port):
+        for p in range(8000, 8050):
+            if not is_port_in_use(p):
+                desired_port = p
+                break
+
     print("\n" + "=" * 60)
     print("  [HanumanAI] Intelligent Agent Platform")
-    print("  [Web]     Open http://localhost:8000 in your browser")
+    print(f"  [Web]     Open http://localhost:{desired_port} in your browser")
     print("=" * 60 + "\n")
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=desired_port, log_level="info")
