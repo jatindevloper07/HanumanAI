@@ -121,13 +121,17 @@ def capture_screen() -> tuple[bytes, Image.Image]:
             screenshot = sct.grab(monitor)
             img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
     except Exception as e1:
-        logger.warning(f"mss failed to capture screen: {e1}. Trying Win32 GDI...")
-        try:
-            img = capture_win32_gdi()
-        except Exception as e2:
-            logger.warning(f"Win32 GDI capture failed: {e2}. Falling back to PIL ImageGrab.")
-            from PIL import ImageGrab
-            img = ImageGrab.grab()
+        if platform.system() == "Windows":
+            logger.warning(f"mss failed to capture screen: {e1}. Trying Win32 GDI...")
+            try:
+                img = capture_win32_gdi()
+            except Exception as e2:
+                logger.warning(f"Win32 GDI capture failed: {e2}. Falling back to PIL ImageGrab.")
+                from PIL import ImageGrab
+                img = ImageGrab.grab()
+        else:
+            logger.warning(f"Headless server screen capture fallback: {e1}")
+            img = Image.new("RGB", (1920, 1080), color=(30, 30, 40))
         
     # Resize if very large to save bandwidth / API tokens
     if img.width > 1920:

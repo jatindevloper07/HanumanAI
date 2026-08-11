@@ -1,6 +1,7 @@
 fastapi
 uvicorn[standard]
 websockets
-google-generativeai
+google-genai
+python-dotenv
 mss
 Pillow
