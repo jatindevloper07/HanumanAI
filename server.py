@@ -424,6 +424,7 @@ if __name__ == "__main__":
     import uvicorn
     print("\n" + "=" * 60)
     print("  [HanumanAI] Intelligent Agent Platform")
-    print("  [Web]     Open http://localhost:8010 in your browser")
+    print("  [Web]     Open http://localhost:8000 in your browser")
     print("=" * 60 + "\n")
-    uvicorn.run(app, host="0.0.0.0", port=8010, log_level="info")
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
