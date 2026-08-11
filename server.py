@@ -14,6 +14,9 @@ import platform
 import subprocess
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -78,20 +81,62 @@ SYSTEM_PROMPTS = {
 # Helpers
 # ---------------------------------------------------------------------------
 
+def capture_win32_gdi() -> Image.Image:
+    """Fallback Win32 GDI screen capture for Windows."""
+    import ctypes
+    import ctypes.wintypes
+    user32 = ctypes.windll.user32
+    gdi32 = ctypes.windll.gdi32
+    w, h = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+    hdc = user32.GetDC(0)
+    mdc = gdi32.CreateCompatibleDC(hdc)
+    bmp = gdi32.CreateCompatibleBitmap(hdc, w, h)
+    gdi32.SelectObject(mdc, bmp)
+    gdi32.BitBlt(mdc, 0, 0, w, h, hdc, 0, 0, 0x00CC0020)
+    
+    class BITMAPINFOHEADER(ctypes.Structure):
+        _fields_ = [
+            ('biSize', ctypes.c_uint32), ('biWidth', ctypes.c_int32), ('biHeight', ctypes.c_int32),
+            ('biPlanes', ctypes.c_uint16), ('biBitCount', ctypes.c_uint16), ('biCompression', ctypes.c_uint32),
+            ('biSizeImage', ctypes.c_uint32), ('biXPelsPerMeter', ctypes.c_int32), ('biYPelsPerMeter', ctypes.c_int32),
+            ('biClrUsed', ctypes.c_uint32), ('biClrImportant', ctypes.c_uint32)
+        ]
+    bmi = BITMAPINFOHEADER()
+    bmi.biSize = ctypes.sizeof(BITMAPINFOHEADER)
+    bmi.biWidth, bmi.biHeight, bmi.biPlanes, bmi.biBitCount, bmi.biCompression = w, -h, 1, 32, 0
+    buf = ctypes.create_string_buffer(w * h * 4)
+    gdi32.GetDIBits(mdc, bmp, 0, h, buf, ctypes.byref(bmi), 0)
+    img = Image.frombuffer('RGBA', (w, h), buf, 'raw', 'BGRA')
+    gdi32.DeleteObject(bmp)
+    gdi32.DeleteDC(mdc)
+    user32.ReleaseDC(0, hdc)
+    return img.convert('RGB')
+
+
 def capture_screen() -> tuple[bytes, Image.Image]:
     """Capture the primary monitor and return (png_bytes, pil_image)."""
-    with mss.mss() as sct:
-        monitor = sct.monitors[1]  # Primary monitor
-        screenshot = sct.grab(monitor)
-        img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
-        # Resize if very large to save bandwidth / API tokens
-        if img.width > 1920:
-            ratio = 1920 / img.width
-            img = img.resize((1920, int(img.height * ratio)), Image.LANCZOS)
-        buf = io.BytesIO()
-        img.save(buf, format="PNG", optimize=True)
-        buf.seek(0)
-        return buf.getvalue(), img
+    try:
+        with mss.mss() as sct:
+            monitor = sct.monitors[1]  # Primary monitor
+            screenshot = sct.grab(monitor)
+            img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
+    except Exception as e1:
+        logger.warning(f"mss failed to capture screen: {e1}. Trying Win32 GDI...")
+        try:
+            img = capture_win32_gdi()
+        except Exception as e2:
+            logger.warning(f"Win32 GDI capture failed: {e2}. Falling back to PIL ImageGrab.")
+            from PIL import ImageGrab
+            img = ImageGrab.grab()
+        
+    # Resize if very large to save bandwidth / API tokens
+    if img.width > 1920:
+        ratio = 1920 / img.width
+        img = img.resize((1920, int(img.height * ratio)), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG", optimize=True)
+    buf.seek(0)
+    return buf.getvalue(), img
 
 
 def get_system_info() -> dict:
@@ -127,11 +172,15 @@ async def websocket_endpoint(ws: WebSocket):
 
     # Per-connection state
     state = {
-        "api_key": None,
-        "model": "gemini-2.0-flash",
+        "api_key": os.getenv("GEMINI_API_KEY"),
+        "model": "gemini-3.6-flash",
         "temperature": 0.7,
         "client": None,
     }
+    
+    # Initialize client immediately if env var is present
+    if state["api_key"]:
+        state["client"] = genai.Client(api_key=state["api_key"])
 
     try:
         while True:
@@ -141,11 +190,9 @@ async def websocket_endpoint(ws: WebSocket):
 
             # ---- configure ---------------------------------------------------
             if msg_type == "configure":
-                state["api_key"] = data.get("apiKey", state["api_key"])
+                # API key is now loaded from .env, but we still allow updating model/temp
                 state["model"] = data.get("model", state["model"])
                 state["temperature"] = float(data.get("temperature", state["temperature"]))
-                if state["api_key"]:
-                    state["client"] = genai.Client(api_key=state["api_key"])
                 await ws.send_json({"type": "configured", "success": True})
 
             # ---- chat --------------------------------------------------------
@@ -200,9 +247,67 @@ async def websocket_endpoint(ws: WebSocket):
 
                 except Exception as exc:
                     logger.error("Chat error: %s", exc)
+                    error_msg = str(exc)
+                    if "404" in error_msg or "not found" in error_msg.lower():
+                        try:
+                            client = state["client"]
+                            models = []
+                            for m in client.models.list():
+                                if "generateContent" in m.supported_actions:
+                                    models.append(m.name)
+                            error_msg += f"\n\nAvailable models for your API key: {', '.join(models)}"
+                        except Exception as e2:
+                            error_msg += f"\n(Failed to list models: {e2})"
+                    await ws.send_json({"type": "error", "message": error_msg})
+
+            # ---- analyze_screen_image (from browser) --------------------------
+            elif msg_type == "analyze_screen_image":
+                if not state["client"]:
+                    await ws.send_json({"type": "error", "message": "API key not set."})
+                    continue
+
+                prompt = data.get("prompt", "Describe everything you see on this screen in detail. Identify applications, windows, text, and any notable content.")
+                image_data = data.get("image", "")
+
+                try:
+                    if "," in image_data:
+                        b64_str = image_data.split(",", 1)[1]
+                    else:
+                        b64_str = image_data
+
+                    png_bytes = base64.b64decode(b64_str)
+
+                    # Create content object with text and image parts
+                    text_part = types.Part.from_text(text=prompt)
+                    image_part = types.Part.from_bytes(data=png_bytes, mime_type="image/png")
+                    contents = [
+                        types.Content(
+                            role="user",
+                            parts=[text_part, image_part],
+                        )
+                    ]
+
+                    client = state["client"]
+                    response = await asyncio.to_thread(
+                        lambda: client.models.generate_content_stream(
+                            model=state["model"],
+                            contents=contents,
+                            config=types.GenerateContentConfig(
+                                system_instruction="You are HanumanAI with screen-reading capability. Analyze the screenshot the user shares and respond helpfully.",
+                                temperature=state["temperature"],
+                            ),
+                        )
+                    )
+                    for chunk in response:
+                        if chunk.text:
+                            await ws.send_json({"type": "chunk", "content": chunk.text})
+                    await ws.send_json({"type": "done"})
+
+                except Exception as exc:
+                    logger.error("Screen image analysis error: %s", exc)
                     await ws.send_json({"type": "error", "message": str(exc)})
 
-            # ---- analyze_screen ----------------------------------------------
+            # ---- analyze_screen (server-side capture) ------------------------
             elif msg_type == "analyze_screen":
                 if not state["client"]:
                     await ws.send_json({"type": "error", "message": "API key not set."})
@@ -218,15 +323,21 @@ async def websocket_endpoint(ws: WebSocket):
                         "image": f"data:image/png;base64,{b64}",
                     })
 
-                    # Create image part for the API
-                    image_part = types.Part.from_image(image=pil_img)
+                    # Create content object with text and image parts
                     text_part = types.Part.from_text(text=prompt)
+                    image_part = types.Part.from_bytes(data=png_bytes, mime_type="image/png")
+                    contents = [
+                        types.Content(
+                            role="user",
+                            parts=[text_part, image_part],
+                        )
+                    ]
 
                     client = state["client"]
                     response = await asyncio.to_thread(
                         lambda: client.models.generate_content_stream(
                             model=state["model"],
-                            contents=[text_part, image_part],
+                            contents=contents,
                             config=types.GenerateContentConfig(
                                 system_instruction="You are HanumanAI with screen-reading capability. Analyze the screenshot the user shares and respond helpfully.",
                                 temperature=state["temperature"],
@@ -313,6 +424,6 @@ if __name__ == "__main__":
     import uvicorn
     print("\n" + "=" * 60)
     print("  [HanumanAI] Intelligent Agent Platform")
-    print("  [Web]     Open http://localhost:8000 in your browser")
+    print("  [Web]     Open http://localhost:8010 in your browser")
     print("=" * 60 + "\n")
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=8010, log_level="info")

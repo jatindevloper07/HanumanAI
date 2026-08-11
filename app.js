@@ -23,8 +23,7 @@ class HanumanAI {
 
     // Settings
     this.settings = {
-      apiKey: '',
-      model: 'gemini-2.0-flash',
+      model: 'gemini-3.6-flash',
       temperature: 0.7,
       voiceId: '',
     };
@@ -56,8 +55,8 @@ class HanumanAI {
     this.initVoice();
     this.populateVoiceSelect();
 
-    // Show onboarding if no API key
-    if (!this.settings.apiKey) {
+    // Show onboarding on first visit
+    if (!localStorage.getItem('nexus_visited')) {
       document.getElementById('onboarding').classList.remove('hidden');
     } else {
       document.getElementById('onboarding').classList.add('hidden');
@@ -102,9 +101,6 @@ class HanumanAI {
 
     // Onboarding
     $('onboarding-submit').onclick = () => this.handleOnboarding();
-    $('onboarding-api-key').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') this.handleOnboarding();
-    });
 
     // Send
     $('send-btn').onclick = () => this.sendCurrentInput();
@@ -190,7 +186,6 @@ class HanumanAI {
       // Send configuration
       this.send({
         type: 'configure',
-        apiKey: this.settings.apiKey,
         model: this.settings.model,
         temperature: this.settings.temperature,
       });
@@ -636,20 +631,67 @@ class HanumanAI {
      Screen Capture
      ==================================================================== */
 
-  captureScreen() {
+  async captureScreen() {
     if (this.isStreaming) return;
 
-    this.screenAnalysisMode = true;
-    this.screenAnalysisText = '';
-    document.getElementById('screen-analysis').innerHTML = '<div class="typing-indicator"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
-    document.getElementById('screen-image').classList.remove('loaded');
-    document.getElementById('screen-viewer').classList.remove('hidden');
+    try {
+      // Capture screen via browser Web API (solves OS/GPU black screen issues)
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { cursor: "always" },
+        audio: false
+      });
 
-    this.isStreaming = true;
-    this.send({
-      type: 'analyze_screen',
-      prompt: 'Describe everything you see on this screen in detail. Identify applications, windows, text, and any notable content. Be specific and helpful.',
-    });
+      const video = document.createElement("video");
+      video.srcObject = stream;
+      await video.play();
+
+      // Draw video frame to canvas
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Stop stream tracks
+      stream.getTracks().forEach(track => track.stop());
+
+      // Get base64 PNG data
+      const imageData = canvas.toDataURL("image/png");
+
+      this.screenAnalysisMode = true;
+      this.screenAnalysisText = '';
+      document.getElementById('screen-analysis').innerHTML = '<div class="typing-indicator"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
+      
+      const imgEl = document.getElementById('screen-image');
+      imgEl.src = imageData;
+      imgEl.classList.add('loaded');
+      document.getElementById('screen-viewer').classList.remove('hidden');
+
+      this.isStreaming = true;
+      this.send({
+        type: 'analyze_screen_image',
+        image: imageData,
+        prompt: 'Describe everything you see on this screen in detail. Identify applications, windows, text, and any notable content. Be specific and helpful.',
+      });
+
+    } catch (err) {
+      console.warn("Browser screen capture cancelled or failed, falling back to server capture:", err);
+      if (err.name === 'NotAllowedError') {
+        // User cancelled picker
+        return;
+      }
+      this.screenAnalysisMode = true;
+      this.screenAnalysisText = '';
+      document.getElementById('screen-analysis').innerHTML = '<div class="typing-indicator"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
+      document.getElementById('screen-image').classList.remove('loaded');
+      document.getElementById('screen-viewer').classList.remove('hidden');
+
+      this.isStreaming = true;
+      this.send({
+        type: 'analyze_screen',
+        prompt: 'Describe everything you see on this screen in detail. Identify applications, windows, text, and any notable content. Be specific and helpful.',
+      });
+    }
   }
 
   displayScreenCapture(imageData) {
@@ -879,20 +921,13 @@ class HanumanAI {
      ==================================================================== */
 
   handleOnboarding() {
-    const key = document.getElementById('onboarding-api-key').value.trim();
-    if (!key) {
-      this.showNotification('Please enter your API key', 'error');
-      return;
-    }
-    this.settings.apiKey = key;
-    this.saveSettings();
+    localStorage.setItem('nexus_visited', 'true');
     document.getElementById('onboarding').classList.add('hidden');
     this.connect();
     this.showNotification('Welcome to HanumanAI! 🚀', 'success');
   }
 
   openSettings() {
-    document.getElementById('api-key-input').value = this.settings.apiKey;
     document.getElementById('model-select').value = this.settings.model;
     document.getElementById('temperature-slider').value = this.settings.temperature;
     document.getElementById('temp-value').textContent = this.settings.temperature;
@@ -907,7 +942,6 @@ class HanumanAI {
   }
 
   applySettings() {
-    this.settings.apiKey = document.getElementById('api-key-input').value.trim();
     this.settings.model = document.getElementById('model-select').value;
     this.settings.temperature = parseFloat(document.getElementById('temperature-slider').value);
     this.settings.voiceId = document.getElementById('voice-select').value;
@@ -919,7 +953,6 @@ class HanumanAI {
     // Send new config to server
     this.send({
       type: 'configure',
-      apiKey: this.settings.apiKey,
       model: this.settings.model,
       temperature: this.settings.temperature,
     });
