@@ -17,9 +17,9 @@ class HanumanAI {
     this.currentConversationId = null;
     this.isStreaming = false;
     this.currentAssistantEl = null;
-    this.currentAssistantText = '';
     this.screenAnalysisMode = false;
     this.screenAnalysisText = '';
+    this.attachments = [];
 
     // Settings
     this.settings = {
@@ -111,6 +111,26 @@ class HanumanAI {
       }
     });
     $('message-input').addEventListener('input', () => this.autoResizeInput());
+
+    // Attachments & Drag and Drop
+    $('attach-btn').onclick = () => $('file-input').click();
+    $('file-input').onchange = (e) => this.handleFileSelect(e.target.files);
+
+    const inputArea = $('input-area');
+    inputArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      inputArea.classList.add('drag-over');
+    });
+    inputArea.addEventListener('dragleave', () => {
+      inputArea.classList.remove('drag-over');
+    });
+    inputArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      inputArea.classList.remove('drag-over');
+      if (e.dataTransfer.files && e.dataTransfer.files.length) {
+        this.handleFileSelect(e.dataTransfer.files);
+      }
+    });
 
     // Mode buttons
     document.querySelectorAll('.mode-btn').forEach((btn) => {
@@ -283,10 +303,14 @@ class HanumanAI {
   sendCurrentInput() {
     const input = document.getElementById('message-input');
     const text = input.value.trim();
-    if (!text || this.isStreaming) return;
+    if ((!text && this.attachments.length === 0) || this.isStreaming) return;
 
     input.value = '';
     this.autoResizeInput();
+
+    const currentAtts = [...this.attachments];
+    this.attachments = [];
+    this.renderAttachments();
 
     // Handle special commands
     if (text.toLowerCase().startsWith('/exec ')) {
@@ -295,22 +319,29 @@ class HanumanAI {
       return;
     }
 
-    this.sendMessage(text);
+    this.sendMessage(text, currentAtts);
   }
 
-  sendMessage(text) {
+  sendMessage(text, attachments = []) {
     // Hide welcome
     const welcome = document.getElementById('welcome-message');
     if (welcome) welcome.style.display = 'none';
 
+    // Format display content if attachments present
+    let displayText = text;
+    if (attachments.length > 0) {
+      const attNames = attachments.map(a => `\`📎 ${a.name}\``).join(' ');
+      displayText = (text ? text + '\n\n' : '') + attNames;
+    }
+
     // Add user message to UI
-    this.addMessage('user', text);
+    this.addMessage('user', displayText);
 
     // Save to conversation history
     const conv = this.getCurrentConversation();
-    conv.messages.push({ role: 'user', content: text });
+    conv.messages.push({ role: 'user', content: displayText });
     if (conv.messages.length === 1) {
-      conv.title = text.substring(0, 35) + (text.length > 35 ? '...' : '');
+      conv.title = (text || attachments[0].name).substring(0, 35);
       this.updateConversationList();
     }
     this.saveConversations();
@@ -329,7 +360,67 @@ class HanumanAI {
       message: text,
       mode: this.currentMode,
       history: history,
+      attachments: attachments,
     });
+  }
+
+  handleFileSelect(files) {
+    Array.from(files).forEach((file) => {
+      const isImage = file.type.startsWith('image/');
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        this.attachments.push({
+          id: 'att_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+          name: file.name,
+          type: isImage ? 'image' : 'text',
+          data: e.target.result,
+        });
+        this.renderAttachments();
+      };
+
+      if (isImage) {
+        reader.readAsDataURL(file);
+      } else {
+        reader.readAsText(file);
+      }
+    });
+    document.getElementById('file-input').value = '';
+  }
+
+  removeAttachment(id) {
+    this.attachments = this.attachments.filter((a) => a.id !== id);
+    this.renderAttachments();
+  }
+
+  renderAttachments() {
+    const preview = document.getElementById('attachment-preview');
+    preview.innerHTML = '';
+    if (this.attachments.length === 0) {
+      preview.classList.add('hidden');
+      return;
+    }
+    preview.classList.remove('hidden');
+    this.attachments.forEach((att) => {
+      const chip = document.createElement('div');
+      chip.className = 'file-chip';
+      if (att.type === 'image') {
+        chip.innerHTML = `
+          <img src="${att.data}" alt="${this.escapeHtml(att.name)}">
+          <span>${this.escapeHtml(att.name)}</span>
+          <button class="file-chip-remove" title="Remove">&times;</button>
+        `;
+      } else {
+        chip.innerHTML = `
+          <i data-lucide="file-text"></i>
+          <span>${this.escapeHtml(att.name)}</span>
+          <button class="file-chip-remove" title="Remove">&times;</button>
+        `;
+      }
+      chip.querySelector('.file-chip-remove').onclick = () => this.removeAttachment(att.id);
+      preview.appendChild(chip);
+    });
+    lucide.createIcons({ nodes: [preview] });
   }
 
   addMessage(role, content) {

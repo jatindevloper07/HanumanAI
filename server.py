@@ -223,11 +223,39 @@ async def websocket_endpoint(ws: WebSocket):
                         )
                     )
 
-                # Append current user message
+                # Build current user message parts (including attachments)
+                current_parts = []
+                if user_msg:
+                    current_parts.append(types.Part.from_text(text=user_msg))
+
+                attachments = data.get("attachments", [])
+                for att in attachments:
+                    att_type = att.get("type", "text")
+                    att_name = att.get("name", "attachment")
+                    att_data = att.get("data", "")
+                    if att_type == "image":
+                        try:
+                            b64_str = att_data.split(",", 1)[1] if "," in att_data else att_data
+                            img_bytes = base64.b64decode(b64_str)
+                            mime = "image/png"
+                            if att_name.lower().endswith((".jpg", ".jpeg")):
+                                mime = "image/jpeg"
+                            elif att_name.lower().endswith(".webp"):
+                                mime = "image/webp"
+                            current_parts.append(types.Part.from_bytes(data=img_bytes, mime_type=mime))
+                        except Exception as e:
+                            logger.error(f"Failed to decode image attachment {att_name}: {e}")
+                    else:
+                        text_content = f"--- Attached File: {att_name} ---\n{att_data}\n--- End of File ---"
+                        current_parts.append(types.Part.from_text(text=text_content))
+
+                if not current_parts:
+                    current_parts.append(types.Part.from_text(text="[Empty Message]"))
+
                 contents.append(
                     types.Content(
                         role="user",
-                        parts=[types.Part.from_text(text=user_msg)],
+                        parts=current_parts,
                     )
                 )
 

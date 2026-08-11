@@ -1099,3 +1099,56 @@ input[type="range"]::-webkit-slider-thumb {
 
   .welcome h2 { font-size: 1.4rem; }
 }
+
+/* ---------- Attachment Bar & Pills ---------- */
+.attachment-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  border: 1px dashed rgba(124, 92, 255, 0.4);
+}
+
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(124, 92, 255, 0.15);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  animation: slideIn 0.2s ease;
+}
+
+.file-chip img {
+  width: 22px;
+  height: 22px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.file-chip-remove {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+  font-size: 0.9rem;
+  transition: color 0.15s;
+}
+
+.file-chip-remove:hover {
+  color: #ff5c5c;
+}
+
+#input-area.drag-over {
+  border: 2px dashed var(--accent-primary);
+  background: rgba(124, 92, 255, 0.12);
+}

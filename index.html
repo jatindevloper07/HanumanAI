@@ -143,8 +143,13 @@
           <div class="pulse-ring"></div>
           <span>Listening...</span>
         </div>
+        <div id="attachment-preview" class="attachment-bar hidden"></div>
         <div class="input-row">
-          <textarea id="message-input" placeholder="Type a message or use voice..." rows="1"></textarea>
+          <button id="attach-btn" class="icon-btn" title="Attach Files / Images">
+            <i data-lucide="paperclip"></i>
+          </button>
+          <input type="file" id="file-input" multiple accept=".txt,.js,.py,.html,.css,.json,.csv,.md,.png,.jpg,.jpeg,.webp" class="hidden">
+          <textarea id="message-input" placeholder="Type a message, attach files, or use voice..." rows="1"></textarea>
           <button id="voice-btn" class="icon-btn" title="Voice Input">
             <i data-lucide="mic"></i>
           </button>
@@ -153,7 +158,7 @@
           </button>
         </div>
         <div class="input-footer">
-          <span class="input-hint">Press Enter to send · Shift+Enter for new line</span>
+          <span class="input-hint">Press Enter to send · Shift+Enter for new line · Drag & Drop files</span>
           <span id="model-indicator">gemini-3.6-flash</span>
         </div>
       </div>
