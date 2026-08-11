@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="HanumanAI — Intelligent AI Agent Platform with screen reading, system control, and real-time voice capabilities.">
+  <title>HanumanAI — Intelligent Agent Platform</title>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Highlight.js (Atom One Dark) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+
+  <!-- App Styles -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Animated gradient background -->
+  <div class="bg-gradient"></div>
+
+  <!-- Onboarding overlay (shown on first visit) -->
+  <div id="onboarding" class="overlay hidden">
+    <div class="overlay-content glass-panel">
+      <div class="onboarding-logo">
+        <i data-lucide="bot"></i>
+      </div>
+      <h1>Welcome to HanumanAI</h1>
+      <p>Your intelligent AI agent with screen reading, system control, and real-time voice capabilities. Powered by Google Gemini.</p>
+      <div class="input-group">
+        <label for="onboarding-api-key">Enter your Google Gemini API Key</label>
+        <input type="password" id="onboarding-api-key" placeholder="AIza...">
+        <small>Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a></small>
+      </div>
+      <button id="onboarding-submit" class="btn-primary">Launch HanumanAI</button>
+    </div>
+  </div>
+
+  <!-- Main app -->
+  <div id="app">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="glass-panel">
+      <div class="sidebar-header">
+        <div class="app-brand">
+          <i data-lucide="bot"></i>
+          <h2>HanumanAI</h2>
+        </div>
+        <button id="sidebar-toggle" class="icon-btn" title="Toggle Sidebar">
+          <i data-lucide="panel-left-close"></i>
+        </button>
+      </div>
+
+      <!-- Agent Mode Selector -->
+      <div id="mode-selector">
+        <label class="section-label">Agent Mode</label>
+        <div class="mode-buttons">
+          <button class="mode-btn active" data-mode="chat" title="Chat Agent">
+            <i data-lucide="message-circle"></i>
+            <span>Chat</span>
+          </button>
+          <button class="mode-btn" data-mode="task" title="Task Agent">
+            <i data-lucide="zap"></i>
+            <span>Tasks</span>
+          </button>
+          <button class="mode-btn" data-mode="code" title="Code Agent">
+            <i data-lucide="code-2"></i>
+            <span>Code</span>
+          </button>
+          <button class="mode-btn" data-mode="knowledge" title="Knowledge Agent">
+            <i data-lucide="book-open"></i>
+            <span>Knowledge</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Conversations -->
+      <div id="conversations-section">
+        <div class="section-header">
+          <label class="section-label">Conversations</label>
+          <button id="new-chat-btn" class="icon-btn" title="New Chat">
+            <i data-lucide="plus"></i>
+          </button>
+        </div>
+        <div id="conversation-list"></div>
+      </div>
+
+      <!-- Sidebar Footer -->
+      <div class="sidebar-footer">
+        <button id="settings-btn" class="sidebar-action-btn">
+          <i data-lucide="settings"></i>
+          <span>Settings</span>
+        </button>
+        <button id="theme-toggle" class="icon-btn" title="Toggle Theme">
+          <i data-lucide="moon"></i>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main id="main">
+      <!-- Header -->
+      <header id="main-header" class="glass-panel">
+        <div class="header-left">
+          <button id="mobile-menu-btn" class="icon-btn mobile-only" title="Menu">
+            <i data-lucide="menu"></i>
+          </button>
+          <div id="current-mode-info">
+            <i id="current-mode-icon" data-lucide="message-circle"></i>
+            <span id="current-mode-name">Chat Agent</span>
+          </div>
+          <div id="connection-status" class="status-dot disconnected" title="Disconnected"></div>
+        </div>
+        <div class="header-right">
+          <button id="voice-toggle" class="icon-btn" title="Toggle Voice Mode">
+            <i data-lucide="mic"></i>
+          </button>
+          <button id="screen-btn" class="icon-btn" title="Capture & Analyze Screen">
+            <i data-lucide="monitor"></i>
+          </button>
+          <button id="export-btn" class="icon-btn" title="Export Conversation">
+            <i data-lucide="download"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- Messages -->
+      <div id="messages">
+        <div id="welcome-message" class="welcome">
+          <div class="welcome-icon">
+            <i data-lucide="sparkles"></i>
+          </div>
+          <h2>Hello! I'm HanumanAI</h2>
+          <p>Your intelligent AI agent with screen reading, system control, and voice capabilities. Pick a mode from the sidebar or ask me anything below.</p>
+          <div class="welcome-chips">
+            <button class="chip" data-prompt="What can you do?">✨ What can you do?</button>
+            <button class="chip" data-prompt="Analyze my screen">📸 Analyze my screen</button>
+            <button class="chip" data-prompt="Tell me about my system">💻 System info</button>
+            <button class="chip" data-prompt="Help me write code">👨‍💻 Write code</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Input Area -->
+      <div id="input-area" class="glass-panel">
+        <div id="voice-indicator" class="hidden">
+          <div class="pulse-ring"></div>
+          <span>Listening...</span>
+        </div>
+        <div class="input-row">
+          <textarea id="message-input" placeholder="Type a message or use voice..." rows="1"></textarea>
+          <button id="voice-btn" class="icon-btn" title="Voice Input">
+            <i data-lucide="mic"></i>
+          </button>
+          <button id="send-btn" class="icon-btn accent" title="Send Message">
+            <i data-lucide="send"></i>
+          </button>
+        </div>
+        <div class="input-footer">
+          <span class="input-hint">Press Enter to send · Shift+Enter for new line</span>
+          <span id="model-indicator">gemini-2.0-flash</span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="overlay hidden">
+    <div class="overlay-backdrop"></div>
+    <div class="overlay-content glass-panel">
+      <div class="modal-header">
+        <h2>⚙️ Settings</h2>
+        <button id="settings-close" class="icon-btn"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-group">
+          <label for="api-key-input">API Key</label>
+          <input type="password" id="api-key-input" placeholder="AIza...">
+        </div>
+        <div class="setting-group">
+          <label for="model-select">Model</label>
+          <select id="model-select">
+            <option value="gemini-2.0-flash">Gemini 2.0 Flash (Fast)</option>
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash (Balanced)</option>
+            <option value="gemini-2.5-pro">Gemini 2.5 Pro (Powerful)</option>
+          </select>
+        </div>
+        <div class="setting-group">
+          <label for="temperature-slider">Temperature: <span id="temp-value">0.7</span></label>
+          <input type="range" id="temperature-slider" min="0" max="2" step="0.1" value="0.7">
+        </div>
+        <div class="setting-group">
+          <label for="voice-select">Voice</label>
+          <select id="voice-select"></select>
+        </div>
+        <button id="settings-save" class="btn-primary">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen Viewer -->
+  <div id="screen-viewer" class="overlay hidden">
+    <div class="overlay-backdrop"></div>
+    <div class="overlay-content glass-panel screen-viewer-content">
+      <div class="modal-header">
+        <h2>🖥️ Screen Analysis</h2>
+        <button id="screen-close" class="icon-btn"><i data-lucide="x"></i></button>
+      </div>
+      <div class="screen-viewer-body">
+        <img id="screen-image" alt="Screen capture">
+        <div id="screen-analysis" class="message-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CDN Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- App Script -->
+  <script src="app.js"></script>
+</body>
+</html>
