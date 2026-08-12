@@ -93,11 +93,19 @@
       </div>
     </aside>
 
+    <!-- Sidebar Extend Button (visible when sidebar is collapsed) -->
+    <button id="sidebar-extend" class="sidebar-extend-btn hidden" title="Expand Sidebar">
+      <i data-lucide="panel-left-open"></i>
+    </button>
+
     <!-- Main Content -->
     <main id="main">
       <!-- Header -->
       <header id="main-header" class="glass-panel">
         <div class="header-left">
+          <button id="header-sidebar-toggle" class="icon-btn hidden" title="Expand Sidebar">
+            <i data-lucide="panel-left-open"></i>
+          </button>
           <button id="mobile-menu-btn" class="icon-btn mobile-only" title="Menu">
             <i data-lucide="menu"></i>
           </button>
@@ -185,6 +193,13 @@
         <div class="setting-group">
           <label for="temperature-slider">Temperature: <span id="temp-value">0.7</span></label>
           <input type="range" id="temperature-slider" min="0" max="2" step="0.1" value="0.7">
+        </div>
+        <div class="setting-group">
+          <label for="theme-select">Theme Mode</label>
+          <select id="theme-select">
+            <option value="night">🌙 Night Mode (Dark)</option>
+            <option value="day">☀️ Day Mode (Light)</option>
+          </select>
         </div>
         <div class="setting-group">
           <label for="voice-select">Voice</label>

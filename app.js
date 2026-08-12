@@ -49,6 +49,7 @@ class HanumanAI {
 
   init() {
     this.loadSettings();
+    this.initTheme();
     this.loadConversations();
     this.setupMarked();
     this.setupEventListeners();
@@ -154,6 +155,8 @@ class HanumanAI {
 
     // Sidebar
     $('sidebar-toggle').onclick = () => this.toggleSidebar();
+    $('sidebar-extend').onclick = () => this.extendSidebar();
+    if ($('header-sidebar-toggle')) $('header-sidebar-toggle').onclick = () => this.extendSidebar();
     $('mobile-menu-btn').onclick = () => this.toggleSidebarMobile();
     $('new-chat-btn').onclick = () => this.createConversation(true);
 
@@ -1022,6 +1025,9 @@ class HanumanAI {
     document.getElementById('model-select').value = this.settings.model;
     document.getElementById('temperature-slider').value = this.settings.temperature;
     document.getElementById('temp-value').textContent = this.settings.temperature;
+    if (document.getElementById('theme-select')) {
+      document.getElementById('theme-select').value = this.currentTheme || 'night';
+    }
     if (this.settings.voiceId) {
       document.getElementById('voice-select').value = this.settings.voiceId;
     }
@@ -1036,6 +1042,12 @@ class HanumanAI {
     this.settings.model = document.getElementById('model-select').value;
     this.settings.temperature = parseFloat(document.getElementById('temperature-slider').value);
     this.settings.voiceId = document.getElementById('voice-select').value;
+
+    const selectedTheme = document.getElementById('theme-select')?.value;
+    if (selectedTheme && selectedTheme !== this.currentTheme) {
+      this.setTheme(selectedTheme, false);
+    }
+
     this.saveSettings();
 
     // Update model indicator
@@ -1087,10 +1099,47 @@ class HanumanAI {
      Theme
      ==================================================================== */
 
+  initTheme() {
+    const savedTheme = localStorage.getItem('hanuman_theme') || this.settings.theme || 'night';
+    this.setTheme(savedTheme, false);
+  }
+
+  setTheme(mode, notify = true) {
+    this.currentTheme = mode;
+    this.settings.theme = mode;
+    localStorage.setItem('hanuman_theme', mode);
+    this.saveSettings();
+
+    const body = document.body;
+    const themeBtn = document.getElementById('theme-toggle');
+    const themeSelect = document.getElementById('theme-select');
+
+    if (mode === 'day') {
+      body.classList.add('day-mode');
+      body.classList.remove('light-theme');
+      if (themeBtn) {
+        themeBtn.setAttribute('title', 'Switch to Night Mode');
+        themeBtn.innerHTML = '<i data-lucide="sun"></i>';
+      }
+      if (themeSelect) themeSelect.value = 'day';
+      if (notify) this.showNotification('Day Mode activated ☀️', 'success');
+    } else {
+      body.classList.remove('day-mode');
+      body.classList.remove('light-theme');
+      if (themeBtn) {
+        themeBtn.setAttribute('title', 'Switch to Day Mode');
+        themeBtn.innerHTML = '<i data-lucide="moon"></i>';
+      }
+      if (themeSelect) themeSelect.value = 'night';
+      if (notify) this.showNotification('Night Mode activated 🌙', 'success');
+    }
+
+    if (themeBtn) lucide.createIcons({ nodes: [themeBtn] });
+  }
+
   toggleTheme() {
-    // Simple dark/light toggle (extend as needed)
-    document.body.classList.toggle('light-theme');
-    this.showNotification('Theme toggled');
+    const newTheme = this.currentTheme === 'day' ? 'night' : 'day';
+    this.setTheme(newTheme, true);
   }
 
   /* ====================================================================
@@ -1098,7 +1147,26 @@ class HanumanAI {
      ==================================================================== */
 
   toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('collapsed');
+    const sidebar = document.getElementById('sidebar');
+    const extendBtn = document.getElementById('sidebar-extend');
+    const headerToggle = document.getElementById('header-sidebar-toggle');
+    sidebar.classList.toggle('collapsed');
+
+    const isCollapsed = sidebar.classList.contains('collapsed');
+    if (extendBtn) extendBtn.classList.toggle('hidden', !isCollapsed);
+    if (headerToggle) headerToggle.classList.toggle('hidden', !isCollapsed);
+
+    if (extendBtn && isCollapsed) lucide.createIcons({ nodes: [extendBtn] });
+    if (headerToggle && isCollapsed) lucide.createIcons({ nodes: [headerToggle] });
+  }
+
+  extendSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const extendBtn = document.getElementById('sidebar-extend');
+    const headerToggle = document.getElementById('header-sidebar-toggle');
+    sidebar.classList.remove('collapsed');
+    if (extendBtn) extendBtn.classList.add('hidden');
+    if (headerToggle) headerToggle.classList.add('hidden');
   }
 
   toggleSidebarMobile() {
