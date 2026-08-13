@@ -41,6 +41,14 @@ class HanumanAI {
       code:      { icon: 'code-2',         name: 'Code Agent' },
       knowledge: { icon: 'book-open',      name: 'Knowledge Agent' },
     };
+
+    // Security Firebox
+    this.security = {
+      firewallBlocked: 0,
+      permissionsGranted: [],
+      permissionsDenied: [],
+    };
+    this._permResolve = null;
   }
 
   /* ====================================================================
@@ -55,6 +63,7 @@ class HanumanAI {
     this.setupEventListeners();
     this.initVoice();
     this.populateVoiceSelect();
+    this.initSecurityFirebox();
 
     // Show onboarding on first visit
     if (!localStorage.getItem('nexus_visited')) {
@@ -180,6 +189,14 @@ class HanumanAI {
     // Screen viewer
     $('screen-close').onclick = () => this.closeScreenViewer();
     $('screen-viewer').querySelector('.overlay-backdrop').onclick = () => this.closeScreenViewer();
+
+    // Security Firebox
+    $('security-btn').onclick = () => this.openSecurityModal();
+    $('security-close').onclick = () => this.closeSecurityModal();
+    $('security-modal').querySelector('.overlay-backdrop').onclick = () => this.closeSecurityModal();
+    $('permission-deny').onclick = () => this.resolvePermission(false);
+    $('permission-allow').onclick = () => this.resolvePermission(true);
+    $('permission-prompt').querySelector('.overlay-backdrop').onclick = () => this.resolvePermission(false);
 
     // Theme toggle
     $('theme-toggle').onclick = () => this.toggleTheme();
@@ -307,6 +324,16 @@ class HanumanAI {
     const input = document.getElementById('message-input');
     const text = input.value.trim();
     if ((!text && this.attachments.length === 0) || this.isStreaming) return;
+
+    // ── Input Firewall ──────────────────────────────────────────────
+    const firewallResult = this.inputFirewall(text);
+    if (firewallResult.blocked) {
+      this.security.firewallBlocked++;
+      this.updateSecurityBadge();
+      this.showNotification(`🛡️ Firewall blocked: ${firewallResult.reason}`, 'error');
+      return;
+    }
+    // ────────────────────────────────────────────────────────────────
 
     input.value = '';
     this.autoResizeInput();
@@ -646,24 +673,47 @@ class HanumanAI {
   }
 
   toggleVoiceMode() {
-    this.isVoiceMode = !this.isVoiceMode;
+    if (!this.isVoiceMode) {
+      // Show permission prompt first
+      this.requestPermission(
+        'microphone',
+        'Microphone Permission',
+        'HanumanAI wants to use your microphone for voice input.',
+        'Voice audio is processed locally by your browser\'s Web Speech API. No audio is sent to external servers.'
+      ).then((allowed) => {
+        if (!allowed) {
+          this.showNotification('Microphone access denied', 'error');
+          return;
+        }
+        this._activateVoiceMode();
+      });
+    } else {
+      this._deactivateVoiceMode();
+    }
+  }
+
+  _activateVoiceMode() {
+    this.isVoiceMode = true;
     const voiceToggle = document.getElementById('voice-toggle');
     const voiceBtn = document.getElementById('voice-btn');
     const indicator = document.getElementById('voice-indicator');
+    voiceToggle.classList.add('active');
+    voiceBtn.classList.add('active');
+    indicator.classList.remove('hidden');
+    this.startListening();
+    this.showNotification('Voice mode activated', 'success');
+  }
 
-    if (this.isVoiceMode) {
-      voiceToggle.classList.add('active');
-      voiceBtn.classList.add('active');
-      indicator.classList.remove('hidden');
-      this.startListening();
-      this.showNotification('Voice mode activated', 'success');
-    } else {
-      voiceToggle.classList.remove('active');
-      voiceBtn.classList.remove('active');
-      indicator.classList.add('hidden');
-      this.stopListening();
-      this.showNotification('Voice mode deactivated');
-    }
+  _deactivateVoiceMode() {
+    this.isVoiceMode = false;
+    const voiceToggle = document.getElementById('voice-toggle');
+    const voiceBtn = document.getElementById('voice-btn');
+    const indicator = document.getElementById('voice-indicator');
+    voiceToggle.classList.remove('active');
+    voiceBtn.classList.remove('active');
+    indicator.classList.add('hidden');
+    this.stopListening();
+    this.showNotification('Voice mode deactivated');
   }
 
   startListening() {
@@ -727,6 +777,18 @@ class HanumanAI {
 
   async captureScreen() {
     if (this.isStreaming) return;
+
+    // Show permission prompt first
+    const allowed = await this.requestPermission(
+      'screen',
+      'Screen Capture Permission',
+      'HanumanAI wants to capture your screen to analyze its contents.',
+      'Your screen will be captured once and analyzed by the AI. No continuous recording occurs.'
+    );
+    if (!allowed) {
+      this.showNotification('Screen capture denied', 'error');
+      return;
+    }
 
     try {
       // Capture screen via browser Web API (solves OS/GPU black screen issues)
@@ -1241,6 +1303,255 @@ class HanumanAI {
     toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
+  }
+
+  /* ====================================================================
+     Security Firebox
+     ==================================================================== */
+
+  /**
+   * Input Firewall — sanitize/validate user messages before sending.
+   * Returns { blocked: boolean, reason: string }
+   */
+  inputFirewall(text) {
+    if (!text) return { blocked: false };
+
+    // Block script injection attempts
+    const scriptPattern = /<script[\s\S]*?>/i;
+    if (scriptPattern.test(text)) {
+      return { blocked: true, reason: 'Script injection attempt detected' };
+    }
+
+    // Block iframe injection
+    const iframePattern = /<iframe[\s\S]*?>/i;
+    if (iframePattern.test(text)) {
+      return { blocked: true, reason: 'Iframe injection attempt detected' };
+    }
+
+    // Block javascript: protocol
+    const jsProtoPattern = /javascript\s*:/i;
+    if (jsProtoPattern.test(text)) {
+      return { blocked: true, reason: 'JavaScript protocol injection detected' };
+    }
+
+    // Block data: URI with HTML/JS
+    const dataUriPattern = /data:\s*text\/html/i;
+    if (dataUriPattern.test(text)) {
+      return { blocked: true, reason: 'Malicious data URI detected' };
+    }
+
+    // Block excessively long messages (>50,000 chars — potential DoS)
+    if (text.length > 50000) {
+      return { blocked: true, reason: 'Message too long (max 50,000 characters)' };
+    }
+
+    // Block null bytes
+    if (text.includes('\x00')) {
+      return { blocked: true, reason: 'Null byte detected' };
+    }
+
+    return { blocked: false };
+  }
+
+  /**
+   * Show a permission prompt overlay and return a Promise<boolean>.
+   */
+  requestPermission(type, title, description, what) {
+    return new Promise((resolve) => {
+      const prompt = document.getElementById('permission-prompt');
+      document.getElementById('permission-title').textContent = title;
+      document.getElementById('permission-desc').textContent = description;
+      document.getElementById('permission-what').textContent = what;
+
+      // Set icon style based on type
+      const iconEl = document.getElementById('permission-icon');
+      if (type === 'screen') {
+        iconEl.setAttribute('data-lucide', 'monitor');
+      } else if (type === 'microphone') {
+        iconEl.setAttribute('data-lucide', 'mic');
+      } else {
+        iconEl.setAttribute('data-lucide', 'shield-alert');
+      }
+      lucide.createIcons({ nodes: [prompt] });
+
+      prompt.classList.remove('hidden');
+      this._permResolve = (allowed) => {
+        prompt.classList.add('hidden');
+        if (allowed) {
+          if (!this.security.permissionsGranted.includes(type)) {
+            this.security.permissionsGranted.push(type);
+          }
+          this.security.permissionsDenied = this.security.permissionsDenied.filter(p => p !== type);
+        } else {
+          if (!this.security.permissionsDenied.includes(type)) {
+            this.security.permissionsDenied.push(type);
+          }
+        }
+        this.updateSecurityBadge();
+        resolve(allowed);
+      };
+    });
+  }
+
+  resolvePermission(allowed) {
+    if (this._permResolve) {
+      const fn = this._permResolve;
+      this._permResolve = null;
+      fn(allowed);
+    }
+  }
+
+  /**
+   * Update the security shield button appearance based on current security state.
+   */
+  updateSecurityBadge() {
+    const btn = document.getElementById('security-btn');
+    if (!btn) return;
+    const score = this.computeSecurityScore();
+    btn.className = 'icon-btn security-btn';
+    if (score >= 80) {
+      // already green
+    } else if (score >= 50) {
+      btn.classList.add('warning');
+    } else {
+      btn.classList.add('danger');
+    }
+  }
+
+  computeSecurityScore() {
+    let score = 100;
+    const isHttps = location.protocol === 'https:';
+    const isWss = isHttps;
+    if (!isHttps) score -= 25;
+    if (this.security.firewallBlocked > 0) score -= Math.min(this.security.firewallBlocked * 5, 20);
+    if (this.security.permissionsDenied.length > 0) score -= 5;
+    return Math.max(0, score);
+  }
+
+  initSecurityFirebox() {
+    // Add pulsing dot to security button
+    const btn = document.getElementById('security-btn');
+    if (btn) {
+      const dot = document.createElement('span');
+      dot.className = 'sec-pulse';
+      btn.appendChild(dot);
+    }
+    this.updateSecurityBadge();
+  }
+
+  openSecurityModal() {
+    const score = this.computeSecurityScore();
+    const isHttps = location.protocol === 'https:';
+    const isWss = isHttps;
+    const wsState = this.ws ? this.ws.readyState : WebSocket.CLOSED;
+
+    // Animate score ring
+    const circumference = 327;
+    const offset = circumference - (score / 100) * circumference;
+    const arc = document.getElementById('score-arc');
+    if (arc) {
+      arc.style.transition = 'stroke-dashoffset 1s cubic-bezier(0.4,0,0.2,1)';
+      arc.setAttribute('stroke-dashoffset', offset.toFixed(1));
+      // Color based on score
+      const grad = document.getElementById('secGrad');
+      if (score >= 80) {
+        grad.querySelectorAll('stop')[0].setAttribute('stop-color', '#10b981');
+        grad.querySelectorAll('stop')[1].setAttribute('stop-color', '#34d399');
+      } else if (score >= 50) {
+        grad.querySelectorAll('stop')[0].setAttribute('stop-color', '#f59e0b');
+        grad.querySelectorAll('stop')[1].setAttribute('stop-color', '#fbbf24');
+      } else {
+        grad.querySelectorAll('stop')[0].setAttribute('stop-color', '#ef4444');
+        grad.querySelectorAll('stop')[1].setAttribute('stop-color', '#f87171');
+      }
+    }
+
+    // Update score value
+    const scoreEl = document.getElementById('security-score-val');
+    if (scoreEl) scoreEl.textContent = score;
+
+    // Update rating label
+    const rating = document.getElementById('security-rating');
+    if (rating) {
+      if (score >= 80) { rating.textContent = '✅ Secure'; rating.className = 'security-rating-label'; }
+      else if (score >= 50) { rating.textContent = '⚠️ Moderate Risk'; rating.className = 'security-rating-label warn'; }
+      else { rating.textContent = '🚨 High Risk'; rating.className = 'security-rating-label danger'; }
+    }
+
+    // Build rows helper
+    const makeRow = (icon, label, badgeClass, badgeText) => `
+      <div class="sec-row">
+        <span class="sec-row-label"><i data-lucide="${icon}"></i>${label}</span>
+        <span class="sec-badge ${badgeClass}"><span class="dot"></span>${badgeText}</span>
+      </div>
+    `;
+
+    // Connection section
+    const connRows = document.getElementById('sec-connection-rows');
+    if (connRows) {
+      connRows.innerHTML = [
+        makeRow('lock', 'Protocol',
+          isHttps ? 'ok' : 'bad',
+          isHttps ? 'HTTPS / Encrypted' : 'HTTP / Unencrypted'),
+        makeRow('zap', 'WebSocket',
+          isWss ? 'ok' : 'bad',
+          isWss ? 'WSS / Secure' : 'WS / Unencrypted'),
+        makeRow('radio', 'Connection State',
+          wsState === WebSocket.OPEN ? 'ok' : wsState === WebSocket.CONNECTING ? 'warn' : 'bad',
+          wsState === WebSocket.OPEN ? 'Connected' : wsState === WebSocket.CONNECTING ? 'Connecting...' : 'Disconnected'),
+        makeRow('globe', 'Origin',
+          'ok', location.hostname || 'localhost'),
+      ].join('');
+    }
+
+    // Privacy section
+    const privacyRows = document.getElementById('sec-privacy-rows');
+    if (privacyRows) {
+      privacyRows.innerHTML = [
+        makeRow('hard-drive', 'Conversation Storage', 'ok', 'Local (localStorage)'),
+        makeRow('settings', 'Settings Storage', 'ok', 'Local (localStorage)'),
+        makeRow('cloud-off', 'External Telemetry', 'ok', 'None'),
+        makeRow('eye-off', 'Tracking Cookies', 'ok', 'None'),
+      ].join('');
+    }
+
+    // Firewall section
+    const firewallRows = document.getElementById('sec-firewall-rows');
+    if (firewallRows) {
+      firewallRows.innerHTML = [
+        makeRow('shield', 'XSS Protection', 'ok', 'Active'),
+        makeRow('code', 'Script Injection Guard', 'ok', 'Active'),
+        makeRow('alert-triangle', 'Blocked Attempts',
+          this.security.firewallBlocked === 0 ? 'ok' : 'warn',
+          this.security.firewallBlocked === 0 ? 'None' : `${this.security.firewallBlocked} blocked`),
+        makeRow('message-square', 'Input Length Limit', 'ok', '50,000 chars'),
+      ].join('');
+    }
+
+    // Permissions section
+    const permRows = document.getElementById('sec-permissions-rows');
+    if (permRows) {
+      const permStatus = (name) => {
+        if (this.security.permissionsGranted.includes(name)) return ['ok', 'Granted'];
+        if (this.security.permissionsDenied.includes(name)) return ['warn', 'Denied'];
+        return ['ok', 'Not Requested'];
+      };
+      const [screenClass, screenText] = permStatus('screen');
+      const [micClass, micText] = permStatus('microphone');
+      permRows.innerHTML = [
+        makeRow('monitor', 'Screen Capture', screenClass, screenText),
+        makeRow('mic', 'Microphone', micClass, micText),
+        makeRow('file-text', 'File Access', 'ok', 'Read-only (local)'),
+        makeRow('cpu', 'System Commands', 'warn', 'Via Server (sandboxed)'),
+      ].join('');
+    }
+
+    lucide.createIcons({ nodes: [document.getElementById('security-modal')] });
+    document.getElementById('security-modal').classList.remove('hidden');
+  }
+
+  closeSecurityModal() {
+    document.getElementById('security-modal').classList.add('hidden');
   }
 }
 

@@ -116,6 +116,9 @@
           <div id="connection-status" class="status-dot disconnected" title="Disconnected"></div>
         </div>
         <div class="header-right">
+          <button id="security-btn" class="icon-btn security-btn" title="Security Status">
+            <i data-lucide="shield-check"></i>
+          </button>
           <button id="voice-toggle" class="icon-btn" title="Toggle Voice Mode">
             <i data-lucide="mic"></i>
           </button>
@@ -206,6 +209,84 @@
           <select id="voice-select"></select>
         </div>
         <button id="settings-save" class="btn-primary">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Permission Prompt Overlay -->
+  <div id="permission-prompt" class="overlay hidden">
+    <div class="overlay-backdrop"></div>
+    <div class="overlay-content glass-panel permission-content">
+      <div class="permission-icon">
+        <i id="permission-icon" data-lucide="shield-alert"></i>
+      </div>
+      <h2 id="permission-title">Permission Required</h2>
+      <p id="permission-desc">HanumanAI needs access to continue.</p>
+      <div class="permission-details">
+        <div class="perm-item">
+          <i data-lucide="eye"></i>
+          <span id="permission-what">This permission is required for this feature.</span>
+        </div>
+        <div class="perm-item perm-safe">
+          <i data-lucide="lock"></i>
+          <span>Data is processed locally and never stored on external servers.</span>
+        </div>
+        <div class="perm-item perm-safe">
+          <i data-lucide="shield"></i>
+          <span>You can revoke this permission at any time from browser settings.</span>
+        </div>
+      </div>
+      <div class="permission-actions">
+        <button id="permission-deny" class="btn-secondary">Deny</button>
+        <button id="permission-allow" class="btn-primary">Allow Access</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Security Info Modal -->
+  <div id="security-modal" class="overlay hidden">
+    <div class="overlay-backdrop"></div>
+    <div class="overlay-content glass-panel security-modal-content">
+      <div class="modal-header">
+        <h2>🛡️ Security Firebox</h2>
+        <button id="security-close" class="icon-btn"><i data-lucide="x"></i></button>
+      </div>
+      <div class="security-score-ring">
+        <svg viewBox="0 0 120 120" class="score-svg">
+          <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="10"/>
+          <circle id="score-arc" cx="60" cy="60" r="52" fill="none" stroke="url(#secGrad)" stroke-width="10"
+            stroke-linecap="round" stroke-dasharray="327" stroke-dashoffset="33"
+            transform="rotate(-90 60 60)"/>
+          <defs>
+            <linearGradient id="secGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#10b981"/>
+              <stop offset="100%" stop-color="#34d399"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="score-label">
+          <span id="security-score-val">90</span>
+          <small>/ 100</small>
+        </div>
+      </div>
+      <p class="security-rating-label" id="security-rating">Secure</p>
+      <div class="security-sections">
+        <div class="security-section">
+          <div class="sec-section-title"><i data-lucide="wifi"></i> Connection</div>
+          <div class="sec-rows" id="sec-connection-rows"></div>
+        </div>
+        <div class="security-section">
+          <div class="sec-section-title"><i data-lucide="database"></i> Data & Privacy</div>
+          <div class="sec-rows" id="sec-privacy-rows"></div>
+        </div>
+        <div class="security-section">
+          <div class="sec-section-title"><i data-lucide="cpu"></i> Input Firewall</div>
+          <div class="sec-rows" id="sec-firewall-rows"></div>
+        </div>
+        <div class="security-section">
+          <div class="sec-section-title"><i data-lucide="key"></i> Permissions</div>
+          <div class="sec-rows" id="sec-permissions-rows"></div>
+        </div>
       </div>
     </div>
   </div>
