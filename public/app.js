@@ -195,9 +195,29 @@ class HanumanAI {
     $('security-btn').onclick = () => this.openSecurityModal();
     $('security-close').onclick = () => this.closeSecurityModal();
     $('security-modal').querySelector('.overlay-backdrop').onclick = () => this.closeSecurityModal();
-    $('permission-deny').onclick = () => this.resolvePermission(false);
-    $('permission-allow').onclick = () => this.resolvePermission(true);
-    $('permission-prompt').querySelector('.overlay-backdrop').onclick = () => this.resolvePermission(false);
+    // Lock Screen
+    const lockForm = $('lockscreen-form');
+    if (lockForm) {
+      lockForm.onsubmit = (e) => {
+        e.preventDefault();
+        const pwd = $('lockscreen-pass').value.trim();
+        if (!pwd) return;
+        sessionStorage.setItem('hanuman_access_token', pwd);
+        this.settings.wsToken = pwd;
+        this.saveSettings();
+        $('auth-lockscreen').classList.add('hidden');
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.send({
+            type: 'configure',
+            model: this.settings.model,
+            temperature: this.settings.temperature,
+            token: pwd
+          });
+        } else {
+          this.connect();
+        }
+      };
+    }
 
     // Theme toggle
     $('theme-toggle').onclick = () => this.toggleTheme();
@@ -217,20 +237,21 @@ class HanumanAI {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = location.hostname || 'localhost';
     const port = location.port ? `:${location.port}` : (location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? ':8000' : '');
-    // Append token as query param so server can validate before processing
-    const tokenParam = this.settings.wsToken ? `?token=${encodeURIComponent(this.settings.wsToken)}` : '';
-    this.ws = new WebSocket(`${protocol}//${host}${port}/ws${tokenParam}`);
+    // Clean WebSocket URL — no sensitive tokens in query parameters!
+    this.ws = new WebSocket(`${protocol}//${host}${port}/ws`);
 
     this.ws.onopen = () => {
       this.reconnectAttempts = 0;
       statusDot.className = 'status-dot connected';
       statusDot.title = 'Connected';
 
-      // Send configuration
+      // Send configuration & in-band auth token
+      const token = sessionStorage.getItem('hanuman_access_token') || this.settings.wsToken || '';
       this.send({
         type: 'configure',
         model: this.settings.model,
         temperature: this.settings.temperature,
+        token: token,
       });
     };
 
@@ -246,9 +267,9 @@ class HanumanAI {
     this.ws.onclose = (event) => {
       statusDot.className = 'status-dot disconnected';
       statusDot.title = 'Disconnected';
-      // Code 4403 = server rejected the token
+      // Code 4403 = server rejected authentication
       if (event.code === 4403) {
-        this.showNotification('🔐 Connection rejected: invalid Server Token. Check Settings.', 'error');
+        this.showAuthLockScreen('Invalid password or server token.');
         return; // Don't auto-reconnect on auth failure
       }
       this.reconnect();
@@ -275,7 +296,12 @@ class HanumanAI {
   handleMessage(data) {
     switch (data.type) {
       case 'configured':
-        // Configuration acknowledged
+        // Authenticated & configured successfully
+        document.getElementById('auth-lockscreen').classList.add('hidden');
+        break;
+
+      case 'auth_error':
+        this.showAuthLockScreen(data.message || 'Authentication required.');
         break;
 
       case 'chunk':
@@ -1146,11 +1172,13 @@ class HanumanAI {
     // Update model indicator
     document.getElementById('model-indicator').textContent = this.settings.model;
 
-    // Send new config to server
+    // Send new config to server with token
+    const token = sessionStorage.getItem('hanuman_access_token') || this.settings.wsToken || '';
     this.send({
       type: 'configure',
       model: this.settings.model,
       temperature: this.settings.temperature,
+      token: token,
     });
 
     this.closeSettings();
@@ -1340,6 +1368,24 @@ class HanumanAI {
     toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
+  }
+
+  showAuthLockScreen(errorMsg = '') {
+    const modal = document.getElementById('auth-lockscreen');
+    const errBox = document.getElementById('lockscreen-error');
+    if (errorMsg) {
+      errBox.textContent = errorMsg;
+      errBox.classList.remove('hidden');
+    } else {
+      errBox.classList.add('hidden');
+    }
+    modal.classList.remove('hidden');
+    const passInput = document.getElementById('lockscreen-pass');
+    if (passInput) {
+      passInput.value = '';
+      setTimeout(() => passInput.focus(), 100);
+    }
+    lucide.createIcons({ nodes: [modal] });
   }
 
   /* ====================================================================

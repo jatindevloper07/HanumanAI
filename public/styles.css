@@ -1635,3 +1635,63 @@ body.day-mode .sec-row:hover {
 body.day-mode .permission-details {
   background: rgba(0, 0, 0, 0.04);
 }
+
+/* --- Lock Screen Modal --- */
+.lockscreen-content {
+  max-width: 420px;
+  text-align: center;
+  padding: 36px 32px;
+}
+
+.lockscreen-header {
+  margin-bottom: 24px;
+}
+
+.lock-icon {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: rgba(124, 92, 255, 0.12);
+  border: 2px solid rgba(124, 92, 255, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  box-shadow: var(--shadow-glow);
+}
+
+.lock-icon i {
+  width: 30px;
+  height: 30px;
+  color: var(--accent-primary);
+}
+
+.lockscreen-header h2 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.lockscreen-header p {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+#lockscreen-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: left;
+}
+
+.lockscreen-error {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+  font-size: 0.82rem;
+  text-align: center;
+}
+

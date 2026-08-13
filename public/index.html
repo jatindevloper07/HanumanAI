@@ -220,6 +220,28 @@
     </div>
   </div>
 
+  <!-- Password Lock Screen Overlay -->
+  <div id="auth-lockscreen" class="overlay hidden">
+    <div class="overlay-backdrop"></div>
+    <div class="overlay-content glass-panel lockscreen-content">
+      <div class="lockscreen-header">
+        <div class="lock-icon">
+          <i data-lucide="lock"></i>
+        </div>
+        <h2>Access Restricted</h2>
+        <p>This HanumanAI server is protected. Enter your server password or token to connect.</p>
+      </div>
+      <form id="lockscreen-form" onsubmit="return false;">
+        <div class="setting-group">
+          <label for="lockscreen-pass">Server Password / Token</label>
+          <input type="password" id="lockscreen-pass" placeholder="Enter password..." autocomplete="current-password" required>
+        </div>
+        <div id="lockscreen-error" class="lockscreen-error hidden"></div>
+        <button type="submit" id="lockscreen-submit" class="btn-primary">Unlock HanumanAI</button>
+      </form>
+    </div>
+  </div>
+
   <!-- Permission Prompt Overlay -->
   <div id="permission-prompt" class="overlay hidden">
     <div class="overlay-backdrop"></div>

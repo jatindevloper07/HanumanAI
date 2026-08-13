@@ -191,20 +191,7 @@ def get_system_info() -> dict:
 # ---------------------------------------------------------------------------
 
 @app.websocket("/ws")
-async def websocket_endpoint(ws: WebSocket, token: str = Query(default="")):
-    # ── Authentication ────────────────────────────────────────────────────
-    # If WS_SECRET is configured, reject any connection whose token doesn't
-    # match.  The client sends ?token=<secret> in the WebSocket URL.
-    if WS_SECRET and token != WS_SECRET:
-        await ws.accept()   # must accept before closing in Starlette
-        logger.warning(
-            "WebSocket rejected: invalid token from %s",
-            ws.client.host if ws.client else "unknown",
-        )
-        await ws.close(code=4403, reason="Unauthorized: invalid token")
-        return
-    # ─────────────────────────────────────────────────────────────────────
-
+async def websocket_endpoint(ws: WebSocket):
     await ws.accept()
     logger.info("WebSocket client connected from %s", ws.client.host if ws.client else "unknown")
 
@@ -214,6 +201,7 @@ async def websocket_endpoint(ws: WebSocket, token: str = Query(default="")):
         "model": "gemini-3.6-flash",
         "temperature": 0.7,
         "client": None,
+        "authenticated": not bool(WS_SECRET),
     }
     
     # Initialize client immediately if env var is present
@@ -226,12 +214,33 @@ async def websocket_endpoint(ws: WebSocket, token: str = Query(default="")):
             data = json.loads(raw)
             msg_type = data.get("type")
 
-            # ---- configure ---------------------------------------------------
-            if msg_type == "configure":
-                # API key is now loaded from .env, but we still allow updating model/temp
-                state["model"] = data.get("model", state["model"])
-                state["temperature"] = float(data.get("temperature", state["temperature"]))
-                await ws.send_json({"type": "configured", "success": True})
+            # ---- configure / auth --------------------------------------------
+            if msg_type in ("configure", "auth"):
+                token = data.get("token", "")
+                if WS_SECRET:
+                    if token == WS_SECRET:
+                        state["authenticated"] = True
+                        state["model"] = data.get("model", state["model"])
+                        state["temperature"] = float(data.get("temperature", state["temperature"]))
+                        await ws.send_json({"type": "configured", "success": True, "authenticated": True})
+                    else:
+                        logger.warning("Auth failed for client %s", ws.client.host if ws.client else "unknown")
+                        await ws.send_json({"type": "auth_error", "message": "Invalid server password or token."})
+                        await ws.close(code=4403, reason="Unauthorized: invalid token")
+                        return
+                else:
+                    state["authenticated"] = True
+                    state["model"] = data.get("model", state["model"])
+                    state["temperature"] = float(data.get("temperature", state["temperature"]))
+                    await ws.send_json({"type": "configured", "success": True, "authenticated": True})
+                continue
+
+            # Ensure connection is authenticated before handling any commands
+            if WS_SECRET and not state.get("authenticated"):
+                logger.warning("Unauthenticated request blocked from %s", ws.client.host if ws.client else "unknown")
+                await ws.send_json({"type": "auth_error", "message": "Authentication required."})
+                await ws.close(code=4403, reason="Unauthorized")
+                return
 
             # ---- chat --------------------------------------------------------
             elif msg_type == "chat":
