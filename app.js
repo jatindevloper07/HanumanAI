@@ -344,8 +344,9 @@ class HanumanAI {
 
     // Handle special commands
     if (text.toLowerCase().startsWith('/exec ')) {
-      const command = text.substring(6).trim();
-      this.executeCommand(command);
+      // Command execution is disabled on the public server for security.
+      // Only available in a local/trusted deployment.
+      this.showNotification('🛡️ /exec is disabled on this deployment for security.', 'error');
       return;
     }
 

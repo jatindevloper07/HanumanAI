@@ -11,7 +11,6 @@ import json
 import logging
 import os
 import platform
-import subprocess
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
@@ -56,7 +55,7 @@ BASE_DIR = Path(__file__).resolve().parent
 SYSTEM_PROMPTS = {
     "chat": (
         "You are HanumanAI, a friendly, intelligent, and helpful AI assistant. "
-        "You have the ability to see the user's screen and execute system commands when asked. "
+        "You have the ability to see the user's screen when asked. "
         "Be conversational, helpful, and proactive. Use markdown formatting in your responses."
     ),
     "task": (
@@ -394,37 +393,19 @@ async def websocket_endpoint(ws: WebSocket):
                     logger.error("Screen capture error: %s", exc)
                     await ws.send_json({"type": "error", "message": str(exc)})
 
-            # ---- execute_command ---------------------------------------------
+            # ---- execute_command (DISABLED on public server) -----------------
             elif msg_type == "execute_command":
-                command = data.get("command", "")
-                if not command:
-                    await ws.send_json({"type": "error", "message": "No command provided."})
-                    continue
-
-                try:
-                    result = await asyncio.to_thread(
-                        lambda: subprocess.run(
-                            command,
-                            shell=True,
-                            capture_output=True,
-                            text=True,
-                            timeout=30,
-                            cwd=os.path.expanduser("~"),
-                        )
-                    )
-                    output = result.stdout
-                    if result.stderr:
-                        output += "\n" + result.stderr
-                    await ws.send_json({
-                        "type": "command_result",
-                        "output": output.strip(),
-                        "exitCode": result.returncode,
-                    })
-                except subprocess.TimeoutExpired:
-                    await ws.send_json({"type": "command_result", "output": "Command timed out after 30 seconds.", "exitCode": -1})
-                except Exception as exc:
-                    logger.error("Command error: %s", exc)
-                    await ws.send_json({"type": "error", "message": str(exc)})
+                # Remote command execution is disabled for security.
+                # This feature is only available in a local/trusted deployment
+                # behind proper authentication and a strict command allowlist.
+                logger.warning("Blocked execute_command request from client (disabled on public server).")
+                await ws.send_json({
+                    "type": "error",
+                    "message": (
+                        "🛡️ Command execution is disabled on this server for security reasons. "
+                        "The /exec feature is only available in a local desktop deployment."
+                    ),
+                })
 
             # ---- system_info -------------------------------------------------
             elif msg_type == "system_info":
