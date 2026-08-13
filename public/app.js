@@ -26,6 +26,7 @@ class HanumanAI {
       model: 'gemini-3.6-flash',
       temperature: 0.7,
       voiceId: '',
+      wsToken: '',   // Shared secret — must match WS_SECRET on the server
     };
 
     // Voice
@@ -216,7 +217,9 @@ class HanumanAI {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = location.hostname || 'localhost';
     const port = location.port ? `:${location.port}` : (location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? ':8000' : '');
-    this.ws = new WebSocket(`${protocol}//${host}${port}/ws`);
+    // Append token as query param so server can validate before processing
+    const tokenParam = this.settings.wsToken ? `?token=${encodeURIComponent(this.settings.wsToken)}` : '';
+    this.ws = new WebSocket(`${protocol}//${host}${port}/ws${tokenParam}`);
 
     this.ws.onopen = () => {
       this.reconnectAttempts = 0;
@@ -240,9 +243,14 @@ class HanumanAI {
       }
     };
 
-    this.ws.onclose = () => {
+    this.ws.onclose = (event) => {
       statusDot.className = 'status-dot disconnected';
       statusDot.title = 'Disconnected';
+      // Code 4403 = server rejected the token
+      if (event.code === 4403) {
+        this.showNotification('🔐 Connection rejected: invalid Server Token. Check Settings.', 'error');
+        return; // Don't auto-reconnect on auth failure
+      }
       this.reconnect();
     };
 
@@ -1107,6 +1115,9 @@ class HanumanAI {
     if (this.settings.voiceId) {
       document.getElementById('voice-select').value = this.settings.voiceId;
     }
+    // Show token as blank if not set (never pre-fill — user types it)
+    const tokenInput = document.getElementById('ws-token-input');
+    if (tokenInput) tokenInput.value = this.settings.wsToken || '';
     document.getElementById('settings-modal').classList.remove('hidden');
   }
 
@@ -1124,6 +1135,12 @@ class HanumanAI {
       this.setTheme(selectedTheme, false);
     }
 
+    // Save token — reconnect if it changed so the new token takes effect
+    const tokenInput = document.getElementById('ws-token-input');
+    const newToken = tokenInput ? tokenInput.value.trim() : '';
+    const tokenChanged = newToken !== this.settings.wsToken;
+    this.settings.wsToken = newToken;
+
     this.saveSettings();
 
     // Update model indicator
@@ -1138,6 +1155,12 @@ class HanumanAI {
 
     this.closeSettings();
     this.showNotification('Settings saved', 'success');
+
+    // Reconnect with new token if it changed
+    if (tokenChanged) {
+      if (this.ws) this.ws.close();
+      setTimeout(() => this.connect(), 300);
+    }
   }
 
   loadSettings() {

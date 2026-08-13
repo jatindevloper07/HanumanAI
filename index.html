@@ -208,6 +208,13 @@
           <label for="voice-select">Voice</label>
           <select id="voice-select"></select>
         </div>
+        <div class="setting-group setting-group-divider">
+          <label for="ws-token-input">
+            🔐 Server Token
+            <span class="setting-hint">Must match <code>WS_SECRET</code> set on your server</span>
+          </label>
+          <input type="password" id="ws-token-input" placeholder="Leave blank if no secret is set" autocomplete="off">
+        </div>
         <button id="settings-save" class="btn-primary">Save Settings</button>
       </div>
     </div>

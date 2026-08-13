@@ -1021,6 +1021,30 @@ body {
   color: var(--text-secondary);
 }
 
+/* Security section \u2014 visually separated from other settings */
+.setting-group-divider {
+  border-top: 1px solid var(--border-glass);
+  padding-top: 16px;
+  margin-top: 4px;
+}
+
+.setting-hint {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.setting-hint code {
+  background: rgba(124, 92, 255, 0.12);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--accent-primary);
+}
+
 .input-group {
   display: flex;
   flex-direction: column;

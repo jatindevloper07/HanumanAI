@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -35,14 +35,36 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("hanumanai")
 
 # ---------------------------------------------------------------------------
+# Security configuration
+# ---------------------------------------------------------------------------
+
+# Comma-separated list of allowed frontend origins.
+# Example: ALLOWED_ORIGINS=https://hanumanai.onrender.com,https://yourdomain.com
+# Defaults to localhost only for local development.
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000")
+ALLOWED_ORIGINS: list[str] = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
+# Shared secret for WebSocket connections.
+# Set WS_SECRET=<strong-random-string> in your environment / Render dashboard.
+# Leave empty to disable the check (not recommended for public deployments).
+WS_SECRET: str = os.getenv("WS_SECRET", "")
+
+if not WS_SECRET:
+    logger.warning(
+        "WS_SECRET is not set — WebSocket endpoint is open to anyone. "
+        "Set WS_SECRET in your environment to restrict access."
+    )
+
+# ---------------------------------------------------------------------------
 # FastAPI app
 # ---------------------------------------------------------------------------
 app = FastAPI(title="HanumanAI", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -169,9 +191,22 @@ def get_system_info() -> dict:
 # ---------------------------------------------------------------------------
 
 @app.websocket("/ws")
-async def websocket_endpoint(ws: WebSocket):
+async def websocket_endpoint(ws: WebSocket, token: str = Query(default="")):
+    # ── Authentication ────────────────────────────────────────────────────
+    # If WS_SECRET is configured, reject any connection whose token doesn't
+    # match.  The client sends ?token=<secret> in the WebSocket URL.
+    if WS_SECRET and token != WS_SECRET:
+        await ws.accept()   # must accept before closing in Starlette
+        logger.warning(
+            "WebSocket rejected: invalid token from %s",
+            ws.client.host if ws.client else "unknown",
+        )
+        await ws.close(code=4403, reason="Unauthorized: invalid token")
+        return
+    # ─────────────────────────────────────────────────────────────────────
+
     await ws.accept()
-    logger.info("WebSocket client connected")
+    logger.info("WebSocket client connected from %s", ws.client.host if ws.client else "unknown")
 
     # Per-connection state
     state = {
