@@ -422,20 +422,67 @@ async def websocket_endpoint(ws: WebSocket):
 
 
 # ---------------------------------------------------------------------------
-# Static file serving
+# Static file serving  (LOCKED DOWN to public/ subfolder only)
 # ---------------------------------------------------------------------------
+
+# Only files inside this folder are ever served over HTTP.
+# .env, server.py, .git, requirements.txt, etc. live in BASE_DIR and are
+# never reachable, even via path-traversal tricks like /../ or %2F..%2F.
+PUBLIC_DIR = BASE_DIR / "public"
+
+
+def _safe_public_path(filename: str) -> Path | None:
+    """
+    Resolve *filename* relative to PUBLIC_DIR and verify it does not escape
+    the public/ sandbox.  Returns the resolved Path on success, or None if
+    the path would escape (path-traversal attempt).
+    """
+    try:
+        resolved = (PUBLIC_DIR / filename).resolve()
+        # is_relative_to raises ValueError (Python < 3.9 fallback below)
+        resolved.relative_to(PUBLIC_DIR.resolve())
+        return resolved
+    except ValueError:
+        return None
+    except Exception:
+        return None
+
 
 @app.get("/")
 async def root():
-    return FileResponse(BASE_DIR / "index.html")
+    index = PUBLIC_DIR / "index.html"
+    if not index.is_file():
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"error": "index.html not found in public/"}, status_code=404)
+    return FileResponse(index)
 
 
 @app.get("/{filename:path}")
 async def static_files(filename: str):
-    filepath = BASE_DIR / filename
-    if filepath.is_file():
-        return FileResponse(filepath)
-    return FileResponse(BASE_DIR / "index.html")
+    # Block obvious traversal attempts early
+    if ".." in filename or filename.startswith("/"):
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+
+    safe_path = _safe_public_path(filename)
+
+    # Path escaped public/ — refuse
+    if safe_path is None:
+        from fastapi.responses import JSONResponse
+        logger.warning("Path traversal attempt blocked: %s", filename)
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+
+    # Serve the file if it exists inside public/
+    if safe_path.is_file():
+        return FileResponse(safe_path)
+
+    # SPA fallback — unknown routes return index.html
+    index = PUBLIC_DIR / "index.html"
+    if index.is_file():
+        return FileResponse(index)
+
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"error": "Not found"}, status_code=404)
 
 
 # ---------------------------------------------------------------------------

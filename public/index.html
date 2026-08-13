@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="HanumanAI — Intelligent AI Agent Platform with screen reading, system control, and real-time voice capabilities.">
+  <title>HanumanAI — Intelligent Agent Platform</title>
+
+  <!-- Google Fonts: Plus Jakarta Sans & Lora (Claude AI aesthetic) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Highlight.js (Atom One Dark) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+
+  <!-- App Styles -->
+  <link rel="stylesheet" href="styles.css?v=claude">
+</head>
+<body>
+  <!-- Animated gradient background -->
+  <div class="bg-gradient"></div>
+
+  <!-- Onboarding overlay (shown on first visit) -->
+  <div id="onboarding" class="overlay hidden">
+    <div class="overlay-content glass-panel">
+      <div class="onboarding-logo">
+        <i data-lucide="bot"></i>
+      </div>
+      <h1>Welcome to HanumanAI</h1>
+      <p>Your intelligent AI agent with screen reading, system control, and real-time voice capabilities. Powered by Google Gemini.</p>
+      <button id="onboarding-submit" class="btn-primary">Launch HanumanAI</button>
+    </div>
+  </div>
+
+  <!-- Main app -->
+  <div id="app">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="glass-panel">
+      <div class="sidebar-header">
+        <div class="app-brand">
+          <i data-lucide="bot"></i>
+          <h2>HanumanAI</h2>
+        </div>
+        <button id="sidebar-toggle" class="icon-btn" title="Toggle Sidebar">
+          <i data-lucide="panel-left-close"></i>
+        </button>
+      </div>
+
+      <!-- Agent Mode Selector -->
+      <div id="mode-selector">
+        <label class="section-label">Agent Mode</label>
+        <div class="mode-buttons">
+          <button class="mode-btn active" data-mode="chat" title="Chat Agent">
+            <i data-lucide="message-circle"></i>
+            <span>Chat</span>
+          </button>
+          <button class="mode-btn" data-mode="task" title="Task Agent">
+            <i data-lucide="zap"></i>
+            <span>Tasks</span>
+          </button>
+          <button class="mode-btn" data-mode="code" title="Code Agent">
+            <i data-lucide="code-2"></i>
+            <span>Code</span>
+          </button>
+          <button class="mode-btn" data-mode="knowledge" title="Knowledge Agent">
+            <i data-lucide="book-open"></i>
+            <span>Knowledge</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Conversations -->
+      <div id="conversations-section">
+        <div class="section-header">
+          <label class="section-label">Conversations</label>
+          <button id="new-chat-btn" class="icon-btn" title="New Chat">
+            <i data-lucide="plus"></i>
+          </button>
+        </div>
+        <div id="conversation-list"></div>
+      </div>
+
+      <!-- Sidebar Footer -->
+      <div class="sidebar-footer">
+        <button id="settings-btn" class="sidebar-action-btn">
+          <i data-lucide="settings"></i>
+          <span>Settings</span>
+        </button>
+        <button id="theme-toggle" class="icon-btn" title="Toggle Theme">
+          <i data-lucide="moon"></i>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Sidebar Extend Button (visible when sidebar is collapsed) -->
+    <button id="sidebar-extend" class="sidebar-extend-btn hidden" title="Expand Sidebar">
+      <i data-lucide="panel-left-open"></i>
+    </button>
+
+    <!-- Main Content -->
+    <main id="main">
+      <!-- Header -->
+      <header id="main-header" class="glass-panel">
+        <div class="header-left">
+          <button id="header-sidebar-toggle" class="icon-btn hidden" title="Expand Sidebar">
+            <i data-lucide="panel-left-open"></i>
+          </button>
+          <button id="mobile-menu-btn" class="icon-btn mobile-only" title="Menu">
+            <i data-lucide="menu"></i>
+          </button>
+          <div id="current-mode-info">
+            <i id="current-mode-icon" data-lucide="message-circle"></i>
+            <span id="current-mode-name">Chat Agent</span>
+          </div>
+          <div id="connection-status" class="status-dot disconnected" title="Disconnected"></div>
+        </div>
+        <div class="header-right">
+          <button id="security-btn" class="icon-btn security-btn" title="Security Status">
+            <i data-lucide="shield-check"></i>
+          </button>
+          <button id="voice-toggle" class="icon-btn" title="Toggle Voice Mode">
+            <i data-lucide="mic"></i>
+          </button>
+          <button id="screen-btn" class="icon-btn" title="Capture & Analyze Screen">
+            <i data-lucide="monitor"></i>
+          </button>
+          <button id="export-btn" class="icon-btn" title="Export Conversation">
+            <i data-lucide="download"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- Messages -->
+      <div id="messages">
+        <div id="welcome-message" class="welcome">
+          <div class="welcome-icon">
+            <i data-lucide="sparkles"></i>
+          </div>
+          <h2>Hello! I'm HanumanAI</h2>
+          <p>Your intelligent AI agent with screen reading, system control, and voice capabilities. Pick a mode from the sidebar or ask me anything below.</p>
+          <div class="welcome-chips">
+            <button class="chip" data-prompt="What can you do?">✨ What can you do?</button>
+            <button class="chip" data-prompt="Analyze my screen">📸 Analyze my screen</button>
+            <button class="chip" data-prompt="Tell me about my system">💻 System info</button>
+            <button class="chip" data-prompt="Help me write code">👨‍💻 Write code</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Input Area -->
+      <div id="input-area" class="glass-panel">
+        <div id="voice-indicator" class="hidden">
+          <div class="pulse-ring"></div>
+          <span>Listening...</span>
+        </div>
+        <div id="attachment-preview" class="attachment-bar hidden"></div>
+        <div class="input-row">
+          <button id="attach-btn" class="icon-btn" title="Attach Files / Images">
+            <i data-lucide="paperclip"></i>
+          </button>
+          <input type="file" id="file-input" multiple accept=".txt,.js,.py,.html,.css,.json,.csv,.md,.png,.jpg,.jpeg,.webp" class="hidden">
+          <textarea id="message-input" placeholder="Type a message, attach files, or use voice..." rows="1"></textarea>
+          <button id="voice-btn" class="icon-btn" title="Voice Input">
+            <i data-lucide="mic"></i>
+          </button>
+          <button id="send-btn" class="icon-btn accent" title="Send Message">
+            <i data-lucide="send"></i>
+          </button>
+        </div>
+        <div class="input-footer">
+          <span class="input-hint">Press Enter to send · Shift+Enter for new line · Drag & Drop files</span>
+          <span id="model-indicator">gemini-3.6-flash</span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="overlay hidden">
+    <div class="overlay-backdrop"></div>
+    <div class="overlay-content glass-panel">
+      <div class="modal-header">
+        <h2>⚙️ Settings</h2>
+        <button id="settings-close" class="icon-btn"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-group">
+          <label for="model-select">Model</label>
+          <select id="model-select">
+            <option value="gemini-3.6-flash">Gemini 3.6 Flash (Fast)</option>
+            <option value="gemini-flash-latest">Gemini Flash (Latest Stable)</option>
+            <option value="gemini-pro-latest">Gemini Pro (Latest Stable)</option>
+          </select>
+        </div>
+        <div class="setting-group">
+          <label for="temperature-slider">Temperature: <span id="temp-value">0.7</span></label>
+          <input type="range" id="temperature-slider" min="0" max="2" step="0.1" value="0.7">
+        </div>
+        <div class="setting-group">
+          <label for="theme-select">Theme Mode</label>
+          <select id="theme-select">
+            <option value="night">🌙 Night Mode (Dark)</option>
+            <option value="day">☀️ Day Mode (Light)</option>
+          </select>
+        </div>
+        <div class="setting-group">
+          <label for="voice-select">Voice</label>
+          <select id="voice-select"></select>
+        </div>
+        <button id="settings-save" class="btn-primary">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Permission Prompt Overlay -->
+  <div id="permission-prompt" class="overlay hidden">
+    <div class="overlay-backdrop"></div>
+    <div class="overlay-content glass-panel permission-content">
+      <div class="permission-icon">
+        <i id="permission-icon" data-lucide="shield-alert"></i>
+      </div>
+      <h2 id="permission-title">Permission Required</h2>
+      <p id="permission-desc">HanumanAI needs access to continue.</p>
+      <div class="permission-details">
+        <div class="perm-item">
+          <i data-lucide="eye"></i>
+          <span id="permission-what">This permission is required for this feature.</span>
+        </div>
+        <div class="perm-item perm-safe">
+          <i data-lucide="lock"></i>
+          <span>Data is processed locally and never stored on external servers.</span>
+        </div>
+        <div class="perm-item perm-safe">
+          <i data-lucide="shield"></i>
+          <span>You can revoke this permission at any time from browser settings.</span>
+        </div>
+      </div>
+      <div class="permission-actions">
+        <button id="permission-deny" class="btn-secondary">Deny</button>
+        <button id="permission-allow" class="btn-primary">Allow Access</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Security Info Modal -->
+  <div id="security-modal" class="overlay hidden">
+    <div class="overlay-backdrop"></div>
+    <div class="overlay-content glass-panel security-modal-content">
+      <div class="modal-header">
+        <h2>🛡️ Security Firebox</h2>
+        <button id="security-close" class="icon-btn"><i data-lucide="x"></i></button>
+      </div>
+      <div class="security-score-ring">
+        <svg viewBox="0 0 120 120" class="score-svg">
+          <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="10"/>
+          <circle id="score-arc" cx="60" cy="60" r="52" fill="none" stroke="url(#secGrad)" stroke-width="10"
+            stroke-linecap="round" stroke-dasharray="327" stroke-dashoffset="33"
+            transform="rotate(-90 60 60)"/>
+          <defs>
+            <linearGradient id="secGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#10b981"/>
+              <stop offset="100%" stop-color="#34d399"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="score-label">
+          <span id="security-score-val">90</span>
+          <small>/ 100</small>
+        </div>
+      </div>
+      <p class="security-rating-label" id="security-rating">Secure</p>
+      <div class="security-sections">
+        <div class="security-section">
+          <div class="sec-section-title"><i data-lucide="wifi"></i> Connection</div>
+          <div class="sec-rows" id="sec-connection-rows"></div>
+        </div>
+        <div class="security-section">
+          <div class="sec-section-title"><i data-lucide="database"></i> Data & Privacy</div>
+          <div class="sec-rows" id="sec-privacy-rows"></div>
+        </div>
+        <div class="security-section">
+          <div class="sec-section-title"><i data-lucide="cpu"></i> Input Firewall</div>
+          <div class="sec-rows" id="sec-firewall-rows"></div>
+        </div>
+        <div class="security-section">
+          <div class="sec-section-title"><i data-lucide="key"></i> Permissions</div>
+          <div class="sec-rows" id="sec-permissions-rows"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen Viewer -->
+  <div id="screen-viewer" class="overlay hidden">
+    <div class="overlay-backdrop"></div>
+    <div class="overlay-content glass-panel screen-viewer-content">
+      <div class="modal-header">
+        <h2>🖥️ Screen Analysis</h2>
+        <button id="screen-close" class="icon-btn"><i data-lucide="x"></i></button>
+      </div>
+      <div class="screen-viewer-body">
+        <img id="screen-image" alt="Screen capture">
+        <div id="screen-analysis" class="message-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CDN Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- App Script -->
+  <script src="app.js?v=claude"></script>
+</body>
+</html>
