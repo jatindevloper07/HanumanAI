@@ -573,7 +573,20 @@ class HanumanAI {
 
   renderMarkdown(text) {
     try {
-      return marked.parse(text);
+      const raw = marked.parse(text);
+      // Sanitize with DOMPurify to strip any XSS payloads from AI output or
+      // user content before it is written to innerHTML.
+      if (typeof DOMPurify !== 'undefined') {
+        return DOMPurify.sanitize(raw, {
+          USE_PROFILES: { html: true },  // Allow standard HTML tags
+          FORBID_TAGS: ['style', 'script', 'iframe', 'object', 'embed', 'form'],
+          FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus',
+                        'onblur', 'onchange', 'onsubmit', 'style'],
+        });
+      }
+      // DOMPurify not available — fall back to escaped plain text (safe)
+      console.warn('DOMPurify not loaded — falling back to escaped output');
+      return this.escapeHtml(text);
     } catch {
       return this.escapeHtml(text);
     }
